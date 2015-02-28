@@ -9,8 +9,8 @@ import (
 		"time"
 		"bytes"
 
-		"github.com/FactomProject/btcutil"
-		"github.com/FactomProject/btcd/wire"
+	"github.com/FactomProject/btcutil"
+	"github.com/FactomProject/btcd/wire"	
 		"github.com/FactomProject/FactomCode/notaryapi"
 	*/)
 

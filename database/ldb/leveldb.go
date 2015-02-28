@@ -87,8 +87,8 @@ type LevelDb struct {
 	lastBlkSha       wire.ShaHash
 	lastBlkIdx       int64
 
-	//	txUpdateMap      map[wire.ShaHash]*txUpdateObj
-	//	txSpentUpdateMap map[wire.ShaHash]*spentTxUpdate
+//	txUpdateMap      map[wire.ShaHash]*txUpdateObj
+//	txSpentUpdateMap map[wire.ShaHash]*spentTxUpdate
 }
 
 var CurrentDBVersion int32 = 1
@@ -107,8 +107,8 @@ func openDB(dbpath string, create bool) (pbdb database.Db, err error) {
 		if err == nil {
 			db.lDb = tlDb
 
-			//			db.txUpdateMap = map[wire.ShaHash]*txUpdateObj{}
-			//			db.txSpentUpdateMap = make(map[wire.ShaHash]*spentTxUpdate)
+//			db.txUpdateMap = map[wire.ShaHash]*txUpdateObj{}
+//			db.txSpentUpdateMap = make(map[wire.ShaHash]*spentTxUpdate)
 
 			pbdb = &db
 		}
