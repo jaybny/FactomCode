@@ -1,13 +1,12 @@
 package notaryapi
 
 import (
-	"encoding"
-	"errors"
 	"bytes"
+	"encoding"
 	"encoding/binary"
-	//"encoding/hex"
-	
+	"errors"
 	"math/big"
+	//"fmt"
 )
 
 type BinaryMarshallable interface {
@@ -18,11 +17,15 @@ type BinaryMarshallable interface {
 
 func bigIntMarshalBinary(i *big.Int) (data []byte, err error) {
 	intd, err := i.GobEncode()
-	if err != nil { return }
-	
+	if err != nil {
+		return
+	}
+
 	size := len(intd)
-	if size > 255 { return nil, errors.New("Big int is too big") }
-	
+	if size > 255 {
+		return nil, errors.New("Big int is too big")
+	}
+
 	data = make([]byte, size+1)
 	data[0] = byte(size)
 	copy(data[1:], intd)
@@ -31,17 +34,19 @@ func bigIntMarshalBinary(i *big.Int) (data []byte, err error) {
 
 func bigIntMarshalledSize(i *big.Int) uint64 {
 	intd, err := i.GobEncode()
-	if err != nil { return 0 }
-	
+	if err != nil {
+		return 0
+	}
+
 	return uint64(1 + len(intd))
 }
 
 func bigIntUnmarshalBinary(data []byte) (retd []byte, i *big.Int, err error) {
 	size, data := uint8(data[0]), data[1:]
-	
+
 	i = new(big.Int)
 	err, retd = i.GobDecode(data[:size]), data[size:]
-	
+
 	return
 }
 
@@ -61,7 +66,6 @@ func (d *SimpleData) UnmarshalBinary([]byte) error {
 	return errors.New("SimpleData cannot be unmarshalled")
 }
 
-
 type ByteArray []byte
 
 func (ba ByteArray) Bytes() []byte {
@@ -78,20 +82,32 @@ func (ba ByteArray) SetBytes(newArray []byte) error {
 func (ba ByteArray) MarshalBinary() ([]byte, error) {
 	var buf bytes.Buffer
 
+	//fmt.Println("uint64(len(ba) ",uint64(len(ba)))
+
 	binary.Write(&buf, binary.BigEndian, uint64(len(ba)))
 	buf.Write(ba)
 	return buf.Bytes(), nil
 }
 
 func (ba ByteArray) MarshalledSize() uint64 {
-	return uint64(len(ba) + 1)
+	//fmt.Println("uint64(len(ba) + 8)",uint64(len(ba) + 8))
+	return uint64(len(ba) + 8)
 }
 
-func (ba ByteArray) UnmarshalBinary([]byte) error {
-	count, data := binary.BigEndian.Uint64(ba[0:8]), ba[8:]
+func (ba ByteArray) UnmarshalBinary(data []byte) (error, []byte) {
+	count := binary.BigEndian.Uint64(data[0:8])
+
+	data = data[8:]
+	//fmt.Println("count",count, data)
+
+	tmp := make([]byte, count)
 	//SetBytes(data[:count])
-	copy(ba[:], data[:count])
-	return nil
+	//fmt.Println("ba",ba, len(ba))
+
+	copy(tmp[:], data[:count])
+	//fmt.Println("ba2",ba, len(ba))
+
+	return nil, tmp
 }
 
 func NewByteArray(newHash []byte) (*ByteArray, error) {

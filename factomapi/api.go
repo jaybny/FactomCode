@@ -1,58 +1,82 @@
 package factomapi
 
 import (
+	//"encoding/base64"
+	"encoding/hex"
+	"fmt"
+	"github.com/FactomProject/FactomCode/database"
+	//	"github.com/FactomProject/FactomCode/factomchain/factoid"
+	"github.com/FactomProject/FactomCode/factomwire"
+	"github.com/FactomProject/FactomCode/notaryapi"
+	"github.com/FactomProject/FactomCode/wallet"
 	"net/http"
 	"net/url"
-	"fmt"
-	"encoding/hex"	
-	"encoding/base64"		
 	"sort"
-	"github.com/FactomProject/FactomCode/database"	
-	"github.com/FactomProject/FactomCode/notaryapi"	
-	"github.com/FactomProject/FactomCode/wallet"
-	//"github.com/FactomProject/FactomCode/database/ldb"	
-	"strconv"		
-	"io/ioutil"	
+	//"github.com/FactomProject/FactomCode/database/ldb"
 	"bytes"
-	"encoding/binary"	
+	"encoding/binary"
+	"io/ioutil"
 	"time"
-
 )
-//to be improved:
-var serverAddr = "localhost:8083"	
-var db database.Db // database
-var	creditsPerChain int32 = 10
+
+//to be improved
+var (
+	serverAddr      = "localhost:8083"
+	db              database.Db
+	creditsPerChain uint32                    = 10
+	outMsgQueue     chan<- factomwire.Message //outgoing message queue for factom application messages
+)
 
 // This method will be replaced with a Factoid transaction once we have the factoid implementation in place
 func BuyEntryCredit(version uint16, ecPubKey *notaryapi.Hash, from *notaryapi.Hash, value uint64, fee uint64, sig *notaryapi.Signature) error {
 
+	fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	fmt.Println("!!! NOT IMPLEMENTED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
-	data := url.Values{}
-	data.Set("format", "binary")
-	data.Set("datatype", "buycredit")
-	data.Set("ECPubKey", ecPubKey.String())
-	data.Set("factoidbase", strconv.FormatUint(value, 10))
-		
-	server := fmt.Sprintf(`http://%s/v1`, serverAddr)
-	_, err := http.PostForm(server, data)
+	// XXX TODO FIXME: gotta be linked to Factoid -- there is no buy or get credit P2P message
+	/*
+		msgGetCredit := factomwire.NewMsgGetCredit()
+		msgGetCredit.ECPubKey = ecPubKey
+		msgGetCredit.FactoidBase = value
 
-	return err
+		outMsgQueue <- msgGetCredit
+	*/
+
+	return nil
 }
+
+//func FactoidTx(addr factoid.Address, n uint32) {
+//	var msg factomwire.MsgTx
+//	genb := factoid.FactoidGenesis(factomwire.TestNet)
+//	outs := factoid.OutputsTx(&genb.Transactions[0])
+//	txm := factoid.NewTxFromOutputToAddr(genb.Transactions[0].Id(), outs,
+//		n, factoid.AddressReveal(*wallet.ClientPublicKey().Key), addr)
+//	ds := wallet.DetachMarshalSign(txm.TxData)
+//	ss := factoid.NewSingleSignature(ds)
+//	factoid.AddSingleSigToTxMsg(txm, ss)
+//
+//	msg.Data, err := txm.MarshalBinary()
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//	outMsgQueue <- msg
+//}
 
 func GetEntryCreditBalance(ecPubKey *notaryapi.Hash) (credits int32, err error) {
 	data := url.Values{}
 	data.Set("format", "binary")
 	data.Set("datatype", "getbalance")
 	data.Set("ECPubKey", ecPubKey.String())
-		
+
 	server := fmt.Sprintf(`http://%s/v1`, serverAddr)
 	resp, err := http.PostForm(server, data)
 
 	contents, err := ioutil.ReadAll(resp.Body)
-	
+
 	buf := bytes.NewBuffer(contents)
-	binary.Read(buf, binary.BigEndian, &credits)		
-		
+	binary.Read(buf, binary.BigEndian, &credits)
+
 	return credits, err
 }
 
@@ -60,132 +84,126 @@ func GetDirectoryBloks(fromBlockHeight uint64, toBlockHeight uint64) (dBlocks []
 	//needs to be improved ??
 	dBlocks, _ = db.FetchAllDBlocks()
 	sort.Sort(byBlockID(dBlocks))
-	 
+
 	if fromBlockHeight > uint64(len(dBlocks)-1) {
 		return nil, nil
 	} else if toBlockHeight > uint64(len(dBlocks)-1) {
-		toBlockHeight = uint64(len(dBlocks)-1)
+		toBlockHeight = uint64(len(dBlocks) - 1)
 	}
-	
-	return dBlocks[fromBlockHeight:toBlockHeight+1], nil
+
+	return dBlocks[fromBlockHeight : toBlockHeight+1], nil
 }
 
-
-func GetDirectoryBlokByHash(dBlockHash *notaryapi.Hash) (dBlock *notaryapi.DBlock, err error) {
-
-	dBlock, err = db.FetchDBlockByHash(dBlockHash)
-	
-	return dBlock, err
-}
-
-func GetDirectoryBlokByHashStr(dBlockHashBase64 string) (dBlock *notaryapi.DBlock, err error) {
-	
-	bytes, err := base64.URLEncoding.DecodeString(dBlockHashBase64)
-	
-	
-	if err != nil || len(bytes) != notaryapi.HashSize{
+func GetDirectoryBlokByHashStr(addr string) (*notaryapi.DBlock, error) {
+	hash := new(notaryapi.Hash)
+	a, err := hex.DecodeString(addr)
+	if err != nil {
 		return nil, err
 	}
-	dBlockHash := new (notaryapi.Hash)
-	dBlockHash.Bytes = bytes
-	
-	
-	dBlock, _ = db.FetchDBlockByHash(dBlockHash)
-	
-	return dBlock, nil
+	hash.Bytes = a
+
+	return db.FetchDBlockByHash(hash)
 }
 
-func GetEntryBlokByHashStr(eBlockHashBase64 string) (eBlock *notaryapi.EBlock, err error) {
-	bytes, err := base64.URLEncoding.DecodeString(eBlockHashBase64)
-	
-	
-	if err != nil || len(bytes) != notaryapi.HashSize{
+func GetEntryBlokByHashStr(addr string) (*notaryapi.EBlock, error) {
+	hash := new(notaryapi.Hash)
+	a, err := hex.DecodeString(addr)
+	if err != nil {
 		return nil, err
 	}
-	eBlockHash := new (notaryapi.Hash)
-	eBlockHash.Bytes = bytes
+	hash.Bytes = a
 
-	return GetEntryBlokByHash(eBlockHash)
+	return db.FetchEBlockByHash(hash)
 }
 
-func GetEntryBlokByHash(eBlockHash *notaryapi.Hash) (eBlock *notaryapi.EBlock, err error) {
-
-	eBlock, err = db.FetchEBlockByHash(eBlockHash)
-	 
-	return eBlock, err
-}
- 
-func GetEntryBlokByMRStr(eBlockMRBase64 string) (eBlock *notaryapi.EBlock, err error) {
-	bytes, err := base64.URLEncoding.DecodeString(eBlockMRBase64)
-		
-	if err != nil || len(bytes) != notaryapi.HashSize{
+func GetEntryBlokByMRStr(addr string) (*notaryapi.EBlock, error) {
+	hash := new(notaryapi.Hash)
+	a, err := hex.DecodeString(addr)
+	if err != nil {
 		return nil, err
 	}
-	eBlockMR := new (notaryapi.Hash)
-	eBlockMR.Bytes = bytes
+	hash.Bytes = a
 
-	return db.FetchEBlockByMR(eBlockMR)
+	return db.FetchEBlockByMR(hash)
 }
 
-func GetEntryByHashStr(entryHashBase64 string) (entry *notaryapi.Entry, err error) {
-	bytes, err := base64.URLEncoding.DecodeString(entryHashBase64)
-	
-	
-	if err != nil || len(bytes) != notaryapi.HashSize{
+func GetEntryByHashStr(addr string) (*notaryapi.Entry, error) {
+	hash := new(notaryapi.Hash)
+	a, err := hex.DecodeString(addr)
+	if err != nil {
 		return nil, err
 	}
-	entryHash := new (notaryapi.Hash)
-	entryHash.Bytes = bytes
+	hash.Bytes = a
 
-	return GetEntryByHash(entryHash)
+	return db.FetchEntryByHash(hash)
 }
 
-func GetEntryByHash(entrySha *notaryapi.Hash) (entry *notaryapi.Entry, err error) {
+//func GetDirectoryBlokByHash(dBlockHash *notaryapi.Hash) (dBlock *notaryapi.DBlock, err error) {
+//
+//	dBlock, err = db.FetchDBlockByHash(dBlockHash)
+//
+//	return dBlock, err
+//}
 
-	entry, err = db.FetchEntryByHash(entrySha)
+//func GetEntryBlokByHash(eBlockHash *notaryapi.Hash) (eBlock *notaryapi.EBlock, err error) {
+//
+//	eBlock, err = db.FetchEBlockByHash(eBlockHash)
+//
+//	return eBlock, err
+//}
 
-	return entry, err
-}
-
+//func GetEntryByHash(entrySha *notaryapi.Hash) (entry *notaryapi.Entry, err error) {
+//
+//	entry, err = db.FetchEntryByHash(entrySha)
+//
+//	return entry, err
+//}
 
 // to be removed------------------------------
 func SetServerAddr(addr string) error {
 	serverAddr = addr
-	
+
 	return nil
 }
 
 func SetDB(database database.Db) error {
 	db = database
-	
+
 	return nil
 }
+func SetOutMsgQueue(outMsgQ chan<- factomwire.Message) error {
+	outMsgQueue = outMsgQ
+
+	return nil
+}
+
 //-=-----------------------------------------
 
 // array sorting implementation
 type byBlockID []notaryapi.DBlock
-func (f byBlockID) Len() int { 
-  return len(f) 
-} 
-func (f byBlockID) Less(i, j int) bool { 
-  return f[i].Header.BlockID < f[j].Header.BlockID
-} 
-func (f byBlockID) Swap(i, j int) { 
-  f[i], f[j] = f[j], f[i] 
-} 
+
+func (f byBlockID) Len() int {
+	return len(f)
+}
+func (f byBlockID) Less(i, j int) bool {
+	return f[i].Header.BlockID < f[j].Header.BlockID
+}
+func (f byBlockID) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
 
 // array sorting implementation
 type byEBlockID []notaryapi.EBlock
-func (f byEBlockID) Len() int { 
-  return len(f) 
-} 
-func (f byEBlockID) Less(i, j int) bool { 
-  return f[i].Header.BlockID > f[j].Header.BlockID
-} 
-func (f byEBlockID) Swap(i, j int) { 
-  f[i], f[j] = f[j], f[i] 
-} 
 
+func (f byEBlockID) Len() int {
+	return len(f)
+}
+func (f byEBlockID) Less(i, j int) bool {
+	return f[i].Header.BlockID > f[j].Header.BlockID
+}
+func (f byEBlockID) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
 
 //-------------------------------------
 /*
@@ -242,7 +260,7 @@ func CommitEntry(e *Entry) error {
 		"format":   {"binary"},
 		"data":     {e.Hash()},
 	}
-	server := fmt.Sprintf(`http://%s/v1`, serverAddr)	
+	server := fmt.Sprintf(`http://%s/v1`, serverAddr)
 	_, err := http.PostForm(server, data)
 	if err != nil {
 		return err
@@ -259,7 +277,7 @@ func RevealEntry(e *Entry) error {
 		"format":   {"binary"},
 		"entry":    {e.Hex()},
 	}
-	server := fmt.Sprintf(`http://%s/v1`, serverAddr)	
+	server := fmt.Sprintf(`http://%s/v1`, serverAddr)
 	_, err := http.PostForm(server, data)
 	if err != nil {
 		return err
@@ -270,43 +288,39 @@ func RevealEntry(e *Entry) error {
 // CommitChain sends a message to the factom network containing a series of
 // hashes to be used to verify the later RevealChain.
 func CommitChain(c *notaryapi.EChain) error {
-	var msg bytes.Buffer
-		
-	bChain,_ := c.MarshalBinary()
-	//chainhash := notaryapi.Sha(bChain)	
+	var buf bytes.Buffer
+
 	// Calculate the required credits
-	credits := int32(binary.Size(bChain)/1000 + 1) + creditsPerChain 		
-	
+	bChain, _ := c.MarshalBinary()
+	credits := uint32(binary.Size(bChain)/1000+1) + creditsPerChain
+
 	binaryEntry, _ := c.FirstEntry.MarshalBinary()
 	entryHash := notaryapi.Sha(binaryEntry)
-	
-	entryChainIDHash := notaryapi.Sha(append(c.ChainID.Bytes, entryHash.Bytes ...))	
-	
-	//msg.Write(bChain) // we don't want to REVEAL the whole chain
-	//msg.Write(chainhash.Bytes)//we might not need this??
-	
-	binary.Write(&msg, binary.BigEndian, uint64(time.Now().Unix()))	
-	msg.Write(c.ChainID.Bytes)
-	msg.Write(entryHash.Bytes)	
-	msg.Write(entryChainIDHash.Bytes) 
 
-	binary.Write(&msg, binary.BigEndian, credits)	
+	entryChainIDHash := notaryapi.Sha(append(c.ChainID.Bytes, entryHash.Bytes...))
 
-	sig := wallet.SignData(msg.Bytes())	
-	 
-	// Need to put in a msg obj once we have the P2P networkd 
-	data := url.Values {}	
-	data.Set("datatype", "commitchain")
-	data.Set("format", "binary")
-	data.Set("data", hex.EncodeToString(msg.Bytes()))
-	data.Set("signature", hex.EncodeToString((*sig.Sig)[:]))
-	data.Set("pubkey", hex.EncodeToString((*sig.Pub.Key)[:]))	
+	// Create a msg signature (timestamp + chainid + entry hash + entryChainIDHash + credits)
+	timestamp := uint64(time.Now().Unix())
+	binary.Write(&buf, binary.BigEndian, timestamp)
+	buf.Write(c.ChainID.Bytes)
+	buf.Write(entryHash.Bytes)
+	buf.Write(entryChainIDHash.Bytes)
+	binary.Write(&buf, binary.BigEndian, credits)
+	sig := wallet.SignData(buf.Bytes())
 
-	server := fmt.Sprintf(`http://%s/v1`, serverAddr)	
-	_, err := http.PostForm(server, data)
-	if err != nil {
-		return err
-	}
+	//Construct a msg and add it to the msg queue
+	msgCommitChain := factomwire.NewMsgCommitChain()
+	msgCommitChain.ChainID = c.ChainID
+	msgCommitChain.Credits = credits
+	msgCommitChain.ECPubKey = new(notaryapi.Hash)
+	msgCommitChain.ECPubKey.Bytes = (*sig.Pub.Key)[:]
+	msgCommitChain.EntryChainIDHash = entryChainIDHash
+	msgCommitChain.EntryHash = entryHash
+	msgCommitChain.Sig = (*sig.Sig)[:]
+	msgCommitChain.Timestamp = timestamp
+
+	outMsgQueue <- msgCommitChain
+
 	return nil
 }
 
@@ -314,22 +328,14 @@ func CommitChain(c *notaryapi.EChain) error {
 // encoded first entry for a chain to be used by the server to add a new factom
 // chain. It will be rejected if a CommitChain was not done.
 func RevealChain(c *notaryapi.EChain) error {
-	bChain,_ := c.MarshalBinary()	
-	
-	data := url.Values{
-		"datatype": {"revealchain"},
-		"format":   {"binary"},
-		"data":     {hex.EncodeToString(bChain)},
-	}
-				
-	server := fmt.Sprintf(`http://%s/v1`, serverAddr)		
-	_, err := http.PostForm(server, data)
-	if err != nil {
-		return err
-	}
-	
-	
-	return nil 
+
+	//Construct a msg and add it to the msg queue
+	msgRevealChain := factomwire.NewMsgRevealChain()
+	msgRevealChain.Chain = c
+
+	outMsgQueue <- msgRevealChain
+
+	return nil
 }
 
 // PrintEntry is a helper function for debugging entry transport and encoding
@@ -341,7 +347,6 @@ func PrintEntry(e *Entry) {
 	}
 	fmt.Println("Data:", string(e.Data))
 }
-
 
 // NewEntry creates a factom entry. It is supplied a string chain id, a []byte
 // of data, and a series of string external ids for entry lookup
@@ -367,39 +372,38 @@ func NewChain(name []string, eids []string, data []byte) (c *Chain, err error) {
 		c.Name = append(c.Name, []byte(v))
 	}
 	str_name := c.GenerateID()
-	c.FirstEntry, err = NewEntry(str_name,eids,data)
+	c.FirstEntry, err = NewEntry(str_name, eids, data)
 	return
 }
 
 // CommitEntry sends a message to the factom network containing a hash of the
 // entry to be used to verify the later RevealEntry.
 func CommitEntry(e *notaryapi.Entry) error {
-	var msg bytes.Buffer
+	var buf bytes.Buffer
 
-	bEntry,_ := e.MarshalBinary()
-	entryHash := notaryapi.Sha(bEntry)	
+	bEntry, _ := e.MarshalBinary()
+	entryHash := notaryapi.Sha(bEntry)
 	// Calculate the required credits
-	credits := int32(binary.Size(bEntry)/1000 + 1)		
-	
-	binary.Write(&msg, binary.BigEndian, uint64(time.Now().Unix()))
-	msg.Write(entryHash.Bytes)
-	binary.Write(&msg, binary.BigEndian, credits)		
+	credits := uint32(binary.Size(bEntry)/1000 + 1)
 
-	sig := wallet.SignData(msg.Bytes())
-	// msg.Bytes should be a int64 timestamp followed by a binary entry
+	// Create a msg signature (timestamp + entry hash + credits)
+	timestamp := uint64(time.Now().Unix())
+	binary.Write(&buf, binary.BigEndian, timestamp)
+	buf.Write(entryHash.Bytes)
+	binary.Write(&buf, binary.BigEndian, credits)
+	sig := wallet.SignData(buf.Bytes())
 
-	data := url.Values{
-		"datatype":  {"commitentry"},
-		"format":    {"binary"},
-		"signature": {hex.EncodeToString((*sig.Sig)[:])},
-		"pubkey":	{hex.EncodeToString((*sig.Pub.Key)[:])},
-		"data":      {hex.EncodeToString(msg.Bytes())},
-	}
-	server := fmt.Sprintf(`http://%s/v1`, serverAddr)	
-	_, err := http.PostForm(server, data)
-	if err != nil {
-		return err
-	}
+	//Construct a msg and add it to the msg queue
+	msgCommitEntry := factomwire.NewMsgCommitEntry()
+	msgCommitEntry.Credits = credits
+	msgCommitEntry.ECPubKey = new(notaryapi.Hash)
+	msgCommitEntry.ECPubKey.Bytes = (*sig.Pub.Key)[:]
+	msgCommitEntry.EntryHash = entryHash
+	msgCommitEntry.Sig = (*sig.Sig)[:]
+	msgCommitEntry.Timestamp = timestamp
+
+	outMsgQueue <- msgCommitEntry
+
 	return nil
 }
 
@@ -407,21 +411,15 @@ func CommitEntry(e *notaryapi.Entry) error {
 // encoded entry for the server to add it to the factom blockchain. The entry
 // will be rejected if a CommitEntry was not done.
 func RevealEntry(e *notaryapi.Entry) error {
-	bEntry,_ := e.MarshalBinary()	
-	data := url.Values{
-		"datatype": {"revealentry"},
-		"format":   {"binary"},
-		"entry":    {hex.EncodeToString(bEntry)},
-	}
-	
-	server := fmt.Sprintf(`http://%s/v1`, serverAddr)	
-	_, err := http.PostForm(server, data)
-	if err != nil {
-		return err
-	}
+
+	//Construct a msg and add it to the msg queue
+	msgRevealEntry := factomwire.NewMsgRevealEntry()
+	msgRevealEntry.Entry = e
+
+	outMsgQueue <- msgRevealEntry
+
 	return nil
 }
-
 
 // CommitEntry sends a message to the factom network containing a hash of the
 // entry to be used to verify the later RevealEntry.
@@ -435,20 +433,20 @@ func CommitEntry2(e *Entry) error {
 	// msg.Bytes should be a int64 timestamp followed by a binary entry
 
 	data := url.Values{
-		"datatype":  {"commitentry"},
+		//		"datatype":  {"commitentry"},
+		"datatype":  {factomwire.CmdCommitEntry},
 		"format":    {"binary"},
 		"signature": {hex.EncodeToString((*sig.Sig)[:])},
-		"pubkey":	{hex.EncodeToString((*sig.Pub.Key)[:])},
+		"pubkey":    {hex.EncodeToString((*sig.Pub.Key)[:])},
 		"data":      {hex.EncodeToString(msg.Bytes())},
 	}
-	server := fmt.Sprintf(`http://%s/v1`, serverAddr)	
+	server := fmt.Sprintf(`http://%s/v1`, serverAddr)
 	_, err := http.PostForm(server, data)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-
 
 // RevealEntry sends a message to the factom network containing the binary
 // encoded entry for the server to add it to the factom blockchain. The entry
@@ -459,15 +457,14 @@ func RevealEntry2(e *Entry) error {
 		"format":   {"binary"},
 		"entry":    {hex.EncodeToString(e.MarshalBinary())},
 	}
-	
-	server := fmt.Sprintf(`http://%s/v1`, serverAddr)	
+
+	server := fmt.Sprintf(`http://%s/v1`, serverAddr)
 	_, err := http.PostForm(server, data)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-
 
 // CommitChain sends a message to the factom network containing a series of
 // hashes to be used to verify the later RevealChain.
@@ -477,7 +474,7 @@ func RevealEntry2(e *Entry) error {
 	binary.Write(&msg, binary.BigEndian, uint64(time.Now().Unix()))
 	msg.Write(c.MarshalBinary())
 
-	chainhash, chainentryhash, entryhash := c.Hash() 
+	chainhash, chainentryhash, entryhash := c.Hash()
 	msg.Write([]byte(chainhash))
 	msg.Write([]byte(chainentryhash))
 	msg.Write([]byte(entryhash))
@@ -548,3 +545,10 @@ func Submit(f FactomWriter) (err error) {
 	return nil
 }
 */
+
+func SubmitFactoidTx(m factomwire.Message) error {
+
+	outMsgQueue <- m
+
+	return nil
+}

@@ -3,10 +3,10 @@ package ldb
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"sync"
-	"log"
 
 	"github.com/FactomProject/FactomCode/database"
 
@@ -17,47 +17,50 @@ import (
 )
 
 const (
-	dbVersion     int = 2 
+	dbVersion     int = 2
 	dbMaxTransCnt     = 20000
 	dbMaxTransMem     = 64 * 1024 * 1024 // 64 MB
 )
 
 // the "table" prefix
 const (
-	TBL_ENTRY     uint8 = iota
+	TBL_ENTRY uint8 = iota
 	TBL_ENTRY_QUEUE
 	TBL_ENTRY_INFO
 
-	TBL_EB 				//3
-	TBL_EB_QUEUE		//4	
-	TBL_EB_INFO			//5
+	TBL_EB       //3
+	TBL_EB_QUEUE //4
+	TBL_EB_INFO  //5
 	TBL_EB_CHAIN_NUM
-	TBL_EB_MR		
+	TBL_EB_MR
 
-	TBL_DB				//8
+	TBL_DB //8
 	TBL_DB_NUM
 	TBL_DBATCH
 	TBL_DB_BATCH
-	
-	TBL_CHAIN_HASH		//12
+
+	TBL_CHAIN_HASH //12
 	TBL_CHAIN_NAME
 
-	TBL_CB				//14
+	TBL_CB //14
 	TBL_CB_NUM
-	TBL_CB_INFO	
+	TBL_CB_INFO
+
+	TBL_FB //17
+	TBL_FB_NUM
+	TBL_FB_INFO
 )
 
 // the process status in db
 const (
-	STATUS_IN_QUEUE     uint8 = iota
+	STATUS_IN_QUEUE uint8 = iota
 	STATUS_PROCESSED
 )
 
 // chain type key prefix ??
-var currentChainType uint32 = 1 
+var currentChainType uint32 = 1
 
-var isLookupDB bool = true // to be put in property file 
-
+var isLookupDB bool = true // to be put in property file
 
 type tTxInsertData struct {
 	txsha   *wire.ShaHash
@@ -88,16 +91,12 @@ type LevelDb struct {
 //	txSpentUpdateMap map[wire.ShaHash]*spentTxUpdate
 }
 
-
-
 var CurrentDBVersion int32 = 1
-
 
 //to be removed??
 func OpenLevelDB(dbpath string, create bool) (pbdb database.Db, err error) {
-	return openDB(dbpath , create )
+	return openDB(dbpath, create)
 }
-
 
 func openDB(dbpath string, create bool) (pbdb database.Db, err error) {
 	var db LevelDb
@@ -186,7 +185,6 @@ func openDB(dbpath string, create bool) (pbdb database.Db, err error) {
 	return
 }
 
-
 func (db *LevelDb) close() error {
 	return db.lDb.Close()
 }
@@ -209,7 +207,6 @@ func (db *LevelDb) Close() error {
 
 	return db.close()
 }
-
 
 func int64ToKey(keyint int64) []byte {
 	key := strconv.FormatInt(keyint, 10)
@@ -239,8 +236,6 @@ func (db *LevelDb) lBatch() *leveldb.Batch {
 	}
 	return db.lbatch
 }
-
-
 
 func (db *LevelDb) RollbackClose() error {
 	db.dbLock.Lock()
